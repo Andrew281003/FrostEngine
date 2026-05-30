@@ -28,6 +28,7 @@ namespace FrostEngine
             
             Lighting.Initialize();
             
+            rlImGui.Setup(true);
             // CurrentScene is initialized in constructor or property, but we can clear it here if needed
             CurrentScene = new Scene();
             
@@ -90,8 +91,6 @@ namespace FrostEngine
 
         private void Draw()
         {
-            Lighting.UpdateShader();
-            
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Lighting.SkyColor);
 
