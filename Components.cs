@@ -12,7 +12,15 @@ namespace FrostEngine
         public Vector3 Scale = Vector3.One;
     }
 
-    public enum MeshType { Cube, Sphere, Plane }
+    public class PointLightComponent : Component
+    {
+        public Vector3 Color = new Vector3(1.0f, 1.0f, 1.0f);
+        public float Intensity = 1.0f;
+        public float Range = 10.0f;
+    }
+
+    // NEW: Added Cylinder and Cone shapes!
+    public enum MeshType { Cube, Sphere, Plane, Cylinder, Cone }
 
     public class MeshRendererComponent : Component
     {
@@ -37,6 +45,8 @@ namespace FrostEngine
                 MeshType.Cube => Raylib.GenMeshCube(1, 1, 1),
                 MeshType.Sphere => Raylib.GenMeshSphere(0.5f, 16, 16),
                 MeshType.Plane => Raylib.GenMeshPlane(1, 1, 1, 1),
+                MeshType.Cylinder => Raylib.GenMeshCylinder(0.5f, 1.0f, 16),
+                MeshType.Cone => Raylib.GenMeshCone(0.5f, 1.0f, 16),
                 _ => Raylib.GenMeshCube(1, 1, 1)
             };
             model = Raylib.LoadModelFromMesh(mesh);
@@ -75,7 +85,8 @@ namespace FrostEngine
             Matrix4x4 matRot = Matrix4x4.CreateFromYawPitchRoll(t.Rotation.Y * MathF.PI / 180f, t.Rotation.X * MathF.PI / 180f, t.Rotation.Z * MathF.PI / 180f);
             Matrix4x4 matTrans = Matrix4x4.CreateTranslation(t.Position);
             
-            model.Transform = matScale * matRot * matTrans;
+            Matrix4x4 finalTransform = matScale * matRot * matTrans;
+            model.Transform = Matrix4x4.Transpose(finalTransform);
             
             Raylib.DrawModel(model, Vector3.Zero, 1.0f, Tint);
         }
@@ -83,8 +94,13 @@ namespace FrostEngine
 
     public class ScriptComponent : Component
     {
-        public string ScriptCode = "-- Lua Script\\nfunction start()\\nend\\n\\nfunction update()\\nend";
+        public string ScriptCode = "-- Lua Script\nfunction start()\nend\n\nfunction update()\nend";
         private Lua? luaState;
+
+        public override void Update()
+        {
+            UpdatePlay();
+        }
 
         public void StartPlay()
         {

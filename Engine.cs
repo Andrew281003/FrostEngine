@@ -1,120 +1,101 @@
 using System;
+using System.IO;
 using System.Numerics;
+using System.Text.Json;
 using Raylib_cs;
 using rlImGui_cs;
-using ImGuiNET;
 
 namespace FrostEngine
 {
+    // Class matching our settings layout
+    public class EngineSettings
+    {
+        public string ProjectPath { get; set; } = "./Projects";
+        public string UserName { get; set; } = "Admin";
+    }
+
     public class Engine
     {
-        public const int WindowWidth = 1280;
-        public const int WindowHeight = 720;
-        public Scene CurrentScene { get; private set; } = new Scene();
-        private Editor? editor;
-        private bool isPlayerMode;
-        private Camera3D playerCamera;
+        public Scene CurrentScene { get; set; }
+        public string ProjectFolder { get; set; } = "./Projects";
 
-        public Engine(bool playerMode = false)
+        public Engine()
         {
-            isPlayerMode = playerMode;
+            CurrentScene = new Scene();
         }
 
         public void Run()
         {
-            Raylib.SetConfigFlags(ConfigFlags.ResizableWindow);
-            Raylib.InitWindow(WindowWidth, WindowHeight, "FrostEngine - Editor");
-            Raylib.SetTargetFPS(60);
-            
-            Lighting.Initialize();
-            
-            rlImGui.Setup(true);
-            // CurrentScene is initialized in constructor or property, but we can clear it here if needed
-            CurrentScene = new Scene();
-            
-            if (!isPlayerMode)
-            {
-                rlImGui.Setup(true);
-                ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.DockingEnable;
-                editor = new Editor(this);
-                
-                var cube = new Entity("Default Cube");
-                cube.AddComponent(new MeshRendererComponent(MeshType.Cube));
-                CurrentScene.AddEntity(cube);
-            }
-            else
-            {
-                // In player mode, load the saved scene
-                CurrentScene = SceneSerializer.Load("scene.json");
-                
-                // Initialize a basic static camera or find a camera component
-                playerCamera = new Camera3D();
-                playerCamera.Position = new Vector3(5, 5, 5);
-                playerCamera.Target = new Vector3(0, 0, 0);
-                playerCamera.Up = new Vector3(0, 1, 0);
-                playerCamera.FovY = 45.0f;
-                playerCamera.Projection = CameraProjection.Perspective;
+            // NEW: Define the standardized Program Files system directory path
+            string programFilesFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "FrostEngine");
+            string globalSettingsPath = Path.Combine(programFilesFolder, "settings.json");
 
-                // Start all scripts
-                foreach (var entity in CurrentScene.GetEntities())
+            // Look for settings inside C:\Program Files\...
+            if (File.Exists(globalSettingsPath))
+            {
+                try
                 {
-                    var script = entity.GetComponent<ScriptComponent>();
-                    script?.StartPlay();
+                    string json = File.ReadAllText(globalSettingsPath);
+                    var settings = JsonSerializer.Deserialize<EngineSettings>(json);
+                    if (settings != null && !string.IsNullOrWhiteSpace(settings.ProjectPath))
+                    {
+                        ProjectFolder = settings.ProjectPath;
+                    }
                 }
+                catch { /* Fallback to default if configuration layout reads broken */ }
             }
+
+            Raylib.SetConfigFlags(ConfigFlags.ResizableWindow);
+            Raylib.InitWindow(1280, 720, "FrostEngine");
+            Raylib.SetTargetFPS(240);
+
+            Lighting.Initialize();
+            rlImGui.Setup(true);
+
+            Editor editor = new Editor(this);
+            Editor.Log($"FrostEngine runtime active. Project directory: {ProjectFolder}");
 
             while (!Raylib.WindowShouldClose())
             {
-                Update();
-                Draw();
-            }
+                editor.Update();
 
-            Raylib.EnableCursor();
-            if (!isPlayerMode) rlImGui.Shutdown();
-            Raylib.CloseWindow();
-        }
+                if (editor.IsPlaying)
+                {
+                    CurrentScene.Update();
+                }
 
-        private void Update()
-        {
-            if (isPlayerMode || (editor != null && editor.IsPlaying))
-            {
+                // Clear and re-populate point lights every frame
+                Lighting.ClearPointLights();
+
                 foreach (var entity in CurrentScene.GetEntities())
                 {
-                    var script = entity.GetComponent<ScriptComponent>();
-                    script?.UpdatePlay();
+                    var light = entity.GetComponent<PointLightComponent>();
+                    if (light != null)
+                    {
+                        Lighting.AddPointLight(entity.Transform.Position, light.Color, light.Intensity, light.Range);
+                    }
                 }
-            }
-            
-            CurrentScene.Update();
-            if (!isPlayerMode) editor?.Update();
-        }
 
-        private void Draw()
-        {
-            Raylib.BeginDrawing();
-            Raylib.ClearBackground(Lighting.SkyColor);
+                // Send everything to the GPU
+                Lighting.Update(editor.EditorCamera);
 
-            if (isPlayerMode)
-            {
-                Raylib.BeginMode3D(playerCamera);
+                Raylib.BeginDrawing();
+                Raylib.ClearBackground(Lighting.SkyColor);
+
+                editor.Begin3D();
                 CurrentScene.Draw();
-                Raylib.EndMode3D();
-            }
-            else
-            {
-                // 3D Scene Rendering
-                editor?.Begin3D();
-                CurrentScene.Draw();
-                editor?.End3D();
 
-                // UI Rendering
+                // Render little indicator spheres exactly where your lights are in space
+                // Removed to clean up the scene view
+
+                editor.End3D();
+
                 rlImGui.Begin();
-                ImGui.DockSpaceOverViewport(0, ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
-                editor?.DrawUI();
+                editor.DrawUI();
                 rlImGui.End();
-            }
 
-            Raylib.EndDrawing();
+                Raylib.EndDrawing();
+            }
         }
     }
 }

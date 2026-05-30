@@ -4,15 +4,11 @@ namespace FrostEngine
 {
     class Program
     {
+        [STAThread] // Good practice for Windows UI applications
         static void Main(string[] args)
         {
-            bool playerMode = false;
-            foreach(var arg in args)
-            {
-                if (arg == "--play") playerMode = true;
-            }
-
-            Engine engine = new Engine(playerMode);
+            // Just boot the engine instantly! No more console dependencies.
+            Engine engine = new Engine();
             engine.Run();
         }
     }

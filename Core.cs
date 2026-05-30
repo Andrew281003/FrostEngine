@@ -74,6 +74,12 @@ namespace FrostEngine
             entities.Add(entity);
         }
 
+        // NEW: Required so we can delete entities from the Hierarchy window!
+        public void RemoveEntity(Entity entity)
+        {
+            entities.Remove(entity);
+        }
+
         public IEnumerable<Entity> GetEntities() => entities;
 
         public void Update()

@@ -25,6 +25,11 @@ namespace FrostEngine
         
         public bool HasScript { get; set; }
         public string ScriptCode { get; set; } = string.Empty;
+        
+        public bool HasLight { get; set; }
+        public Vector3 LightColor { get; set; }
+        public float LightIntensity { get; set; }
+        public float LightRange { get; set; }
     }
 
     public static class SceneSerializer
@@ -55,6 +60,15 @@ namespace FrostEngine
                 {
                     eData.HasScript = true;
                     eData.ScriptCode = script.ScriptCode;
+                }
+
+                var light = ent.GetComponent<PointLightComponent>();
+                if (light != null)
+                {
+                    eData.HasLight = true;
+                    eData.LightColor = light.Color;
+                    eData.LightIntensity = light.Intensity;
+                    eData.LightRange = light.Range;
                 }
 
                 data.Entities.Add(eData);
@@ -95,10 +109,98 @@ namespace FrostEngine
                         ent.AddComponent(script);
                     }
 
+                    if (eData.HasLight)
+                    {
+                        var light = new PointLightComponent();
+                        light.Color = eData.LightColor;
+                        light.Intensity = eData.LightIntensity;
+                        light.Range = eData.LightRange;
+                        ent.AddComponent(light);
+                    }
+
                     scene.AddEntity(ent);
                 }
             }
             return scene;
         }
+
+        // Paste this inside the SceneSerializer class
+                public static void SavePrefab(Entity entity, string path)
+                {
+                    var eData = new EntityData
+                    {
+                        Name = entity.Name,
+                        Position = entity.Transform.Position,
+                        Rotation = entity.Transform.Rotation,
+                        Scale = entity.Transform.Scale
+                    };
+        
+                    var mesh = entity.GetComponent<MeshRendererComponent>();
+                    if (mesh != null)
+                    {
+                        eData.HasMesh = true;
+                        eData.MeshType = (int)mesh.Type;
+                        eData.TexturePath = mesh.TexturePath;
+                    }
+        
+                    var script = entity.GetComponent<ScriptComponent>();
+                    if (script != null)
+                    {
+                        eData.HasScript = true;
+                        eData.ScriptCode = script.ScriptCode;
+                    }
+        
+                    var light = entity.GetComponent<PointLightComponent>();
+                    if (light != null)
+                    {
+                        eData.HasLight = true;
+                        eData.LightColor = light.Color;
+                        eData.LightIntensity = light.Intensity;
+                        eData.LightRange = light.Range;
+                    }
+        
+                    string json = JsonSerializer.Serialize(eData, new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(path, json);
+                }
+        
+                public static Entity LoadPrefab(string path)
+                {
+                    if (!File.Exists(path)) return new Entity("Broken Prefab");
+        
+                    string json = File.ReadAllText(path);
+                    EntityData? eData = JsonSerializer.Deserialize<EntityData>(json);
+                    
+                    Entity ent = new Entity(eData?.Name ?? "New Prefab");
+                    if (eData != null)
+                    {
+                        ent.Transform.Position = eData.Position;
+                        ent.Transform.Rotation = eData.Rotation;
+                        ent.Transform.Scale = eData.Scale;
+        
+                        if (eData.HasMesh)
+                        {
+                            var mesh = new MeshRendererComponent((MeshType)eData.MeshType);
+                            mesh.TexturePath = eData.TexturePath;
+                            ent.AddComponent(mesh);
+                        }
+        
+                        if (eData.HasScript)
+                        {
+                            var script = new ScriptComponent();
+                            script.ScriptCode = eData.ScriptCode;
+                            ent.AddComponent(script);
+                        }
+        
+                        if (eData.HasLight)
+                        {
+                            var light = new PointLightComponent();
+                            light.Color = eData.LightColor;
+                            light.Intensity = eData.LightIntensity;
+                            light.Range = eData.LightRange;
+                            ent.AddComponent(light);
+                        }
+                    }
+                    return ent;
+                }
     }
 }
